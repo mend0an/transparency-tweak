@@ -78,3 +78,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 The tweak loads a DLL into Explorer and Settings to customize their UI. It does not modify files in Windows system folders. Because it depends on Windows UI internals, Windows updates may affect compatibility.
 
 See [development notes](docs/DEVELOPMENT.md) for the Settings crash fix, implementation details, and regression test commands.
+
+## Support the project
+
+If you find Transparency Tweak useful, consider giving this repository a star on GitHub or supporting its development with an ETH donation. Every bit of support is appreciated!
+
+**ETH wallet:** `0x60adbf13961c97b1afb317e2fa87531e5be78970`
+
+Thank you for using Transparency Tweak and helping it grow.
