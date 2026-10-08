@@ -1,0 +1,23 @@
+# Local deployment tools
+/.tools/
+
+# Compiler output (standalone installers in dist/ are distributed)
+/native/out/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# Original screenshot copies; documentation uses docs/images/
+/Screenshot *.png
+
+# Local files and credentials
+.env
+.env.*
+!.env.example
+*.log
+/.vs/
+/.vscode/
+/.codex/
+/.agents/
