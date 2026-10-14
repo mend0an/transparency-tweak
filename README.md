@@ -81,7 +81,7 @@ See [development notes](docs/DEVELOPMENT.md) for the Settings crash fix, impleme
 
 An optional [experimental shell flyout animation](docs/SHELL-FLYOUT-ANIMATION.md) opens Start and tray panels from the screen edge matching the taskbar's position (left, top, right, or bottom) on that monitor. Closing uses the native Windows animation. It is built separately and is not included in the stable installer; visual validation is still pending.
 
-An optional [Aero Glass preview 0.1.0-preview.1](docs/AERO-RELEASE.md) adds taskbar blur and reflections with separate controls in Colors. Its versioned package keeps previous program files and includes a **Restore Previous Version** tool. No prior uninstall is required; switching versions restarts Explorer. The stable installer above remains the plain tint edition. The preview installer has passed simulated switching tests; live installer and Settings UI validation are pending.
+An optional [Aero Glass preview 0.1.0-preview.2](docs/AERO-RELEASE.md) adds taskbar blur and reflections with separate controls in Colors. Its versioned package keeps previous program files and includes a **Restore Previous Version** tool. No prior uninstall is required; switching versions restarts Explorer. Preview 2 corrects verification to check the taskbar's Explorer, waits for DLL readiness, and records DLL paths/hashes if verification fails. The stable installer above remains the plain tint edition. The preview installer has passed simulated switching tests; live installer and Settings UI validation are pending.
 
 ## Support the project
 

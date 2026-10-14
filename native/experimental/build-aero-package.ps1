@@ -1,7 +1,7 @@
 # Builds a separately named, versioned Aero release; stable outputs stay intact.
 [CmdletBinding()]
 param(
-    [ValidatePattern('^\d+\.\d+\.\d+-preview\.\d+$')][string]$Version = '0.1.0-preview.1',
+    [ValidatePattern('^\d+\.\d+\.\d+-preview\.\d+$')][string]$Version = '0.1.0-preview.2',
     [switch]$SkipNativeBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -57,6 +57,9 @@ $readme = @"
 
 Separate Aero preview for Windows 11 x64; runtime tested on build 26300.9457.
 This package preserves previous program files. Only one version runs at a time.
+The installer verifies the taskbar's Explorer and waits for DLL readiness.
+Verification failures include observed DLL paths/hashes in
+%LOCALAPPDATA%\TransparencyTweak\logs\aero-install.log.
 
 1. Run **$installName**. No prior uninstall is required.
 2. Explorer restarts; File Explorer and Settings windows using the tweak may close.

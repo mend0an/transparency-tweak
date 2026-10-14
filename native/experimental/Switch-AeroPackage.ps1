@@ -77,12 +77,54 @@ function Load-Executable([string]$path, [string]$expectedHash) {
     $process = Start-Process -FilePath $path -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(60000)) { $process.Kill(); throw 'Injector timed out.' }
     if ($process.ExitCode -ne 0) { throw ('Injector failed: ' + $process.ExitCode) }
-    $found = @(Get-Process explorer -ErrorAction SilentlyContinue | Where-Object SessionId -eq $session | ForEach-Object {
-        @($_.Modules | Where-Object ModuleName -match '^TweakTap(?:-.*)?\.dll$')
-    })
-    if ($found.Count -ne 1 -or (Get-FileHash -LiteralPath $found[0].FileName).Hash -ne $expectedHash) {
-        throw 'Expected DLL was not loaded as the only tweak in Explorer.'
+
+    # InitializeXamlDiagnosticsEx returning successfully is not a readiness check.
+    # The injector targets the taskbar owner, not every File Explorer process.
+    $observed = 'Taskbar Explorer not found.'
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        try {
+            $hostProcess = Get-TaskbarExplorer
+            if ($hostProcess) {
+                $found = @($hostProcess.Modules | Where-Object ModuleName -match '^TweakTap(?:-.*)?\.dll$')
+                $details = @($found | ForEach-Object {
+                    [pscustomobject]@{Path=$_.FileName;SHA256=(Get-FileHash -LiteralPath $_.FileName).Hash}
+                })
+                if ($details.Count -eq 1 -and $details[0].SHA256 -eq $expectedHash) { return }
+                $observed = 'Taskbar Explorer PID {0}: {1} tweak DLL(s). {2}' -f $hostProcess.Id,$details.Count,($details | ConvertTo-Json -Compress)
+            } else { $observed = 'Taskbar Explorer not found in the current session.' }
+        } catch { $observed = 'Cannot inspect taskbar Explorer: ' + $_.Exception.Message }
+        if ($attempt -lt 29) { Start-Sleep -Milliseconds 500 }
     }
+    $logDir = Join-Path $root 'logs'
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    $logPath = Join-Path $logDir 'aero-install.log'
+    $detail = 'Expected DLL was not loaded as the only tweak in taskbar Explorer. Expected SHA256: {0}. {1} Injector: {2}. 64-bit PowerShell: {3}.' -f $expectedHash,$observed,$path,[Environment]::Is64BitProcess
+    Add-Content -LiteralPath $logPath -Encoding UTF8 -Value ('{0} {1}' -f [DateTime]::UtcNow.ToString('o'),$detail)
+    throw ($detail + ' Diagnostics: ' + $logPath)
+}
+
+function Get-TaskbarExplorer {
+    if (-not ('TransparencyTweak.AeroInstallerNative' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace TransparencyTweak {
+    public static class AeroInstallerNative {
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern IntPtr FindWindow(string className, string windowName);
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    }
+}
+'@
+    }
+    $window = [TransparencyTweak.AeroInstallerNative]::FindWindow('Shell_TrayWnd', $null)
+    if ($window -eq [IntPtr]::Zero) { return }
+    [uint32]$ownerId = 0
+    [void][TransparencyTweak.AeroInstallerNative]::GetWindowThreadProcessId($window, [ref]$ownerId)
+    if (-not $ownerId) { return }
+    $owner = Get-Process -Id $ownerId -ErrorAction SilentlyContinue
+    if ($owner -and $owner.ProcessName -eq 'explorer' -and $owner.SessionId -eq $session) { $owner }
 }
 
 function Restore-Previous($state) {

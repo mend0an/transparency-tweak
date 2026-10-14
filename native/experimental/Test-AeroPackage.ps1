@@ -1,7 +1,7 @@
 # Artifact checks and simulated installer round trips. Never touches real tasks,
 # registry or processes. All filesystem fixtures stay under native/out.
 [CmdletBinding()]
-param([string]$Version = '0.1.0-preview.1')
+param([string]$Version = '0.1.0-preview.2')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot)
 $release = Join-Path $root ('dist\TransparencyTweak-Aero-' + $Version)
@@ -29,8 +29,18 @@ $fixture = Join-Path $root ('native\out\aero-prototype\package-test-' + [Guid]::
 [IO.Directory]::CreateDirectory($fixture) | Out-Null
 $oldLocal = $env:LOCALAPPDATA
 $env:LOCALAPPDATA = $fixture
-$global:AeroPackageTest = @{Task=$null;Registry=@{};Module=$null;FailAero=$false;Writes=0;TaskXML=$null}
+$global:AeroPackageTest = @{Task=$null;Registry=@{};Module=$null;FailAero=$false;Writes=0;TaskXML=$null;TaskbarReads=0;DelayReads=0;ExtraExplorer=$false;WrongAeroModule=$null;DuplicateAeroModule=$null}
 try {
+    # Simulate taskbar ownership without reading the real desktop.
+    Add-Type -TypeDefinition @'
+using System;
+namespace TransparencyTweak {
+    public static class AeroInstallerNative {
+        public static IntPtr FindWindow(string className, string windowName) { return new IntPtr(1); }
+        public static uint GetWindowThreadProcessId(IntPtr window, out uint processId) { processId = 100; return 1; }
+    }
+}
+'@
     # Functions are inherited by the child script. Native system mutations are
     # replaced, while versioned file copy/state persistence uses real fixtures.
     function Get-ScheduledTask { param($TaskName,$ErrorAction) if($global:AeroPackageTest.Task){$global:AeroPackageTest.Task} }
@@ -76,20 +86,33 @@ try {
     }
     function Get-Process {
         param($Name,$Id,$ErrorAction)
-        if($Id){return [pscustomobject]@{SessionId=0}}
-        if($Name -eq 'explorer'){
-            $modules = if($global:AeroPackageTest.Module){@([pscustomobject]@{ModuleName='TweakTap-test.dll';FileName=$global:AeroPackageTest.Module})}else{@()}
-            [pscustomobject]@{SessionId=0;Modules=$modules;ProcessName='explorer'}
+        if($Id -eq $PID){return [pscustomobject]@{SessionId=0}}
+        if($Name -eq 'explorer' -or $Id -eq 100){
+            if($Id -eq 100){$global:AeroPackageTest.TaskbarReads++}
+            $modules = @()
+            if($global:AeroPackageTest.Module -and ($Id -ne 100 -or $global:AeroPackageTest.TaskbarReads -gt $global:AeroPackageTest.DelayReads)){
+                $modules += [pscustomobject]@{ModuleName='TweakTap-test.dll';FileName=$global:AeroPackageTest.Module}
+                if($global:AeroPackageTest.DuplicateAeroModule -and $global:AeroPackageTest.Module -like '*\versions\*'){
+                    $modules += [pscustomobject]@{ModuleName='TweakTap-old.dll';FileName=$global:AeroPackageTest.DuplicateAeroModule}
+                }
+            }
+            [pscustomobject]@{Id=100;SessionId=0;Modules=$modules;ProcessName='explorer'}
+            if(-not $Id -and $global:AeroPackageTest.ExtraExplorer){
+                [pscustomobject]@{Id=101;SessionId=0;Modules=@([pscustomobject]@{ModuleName='TweakTap-old.dll';FileName=$global:AeroPackageTest.LegacyModule});ProcessName='explorer'}
+            }
         }
     }
     function Stop-Process { param([Parameter(ValueFromPipeline=$true)]$InputObject,[switch]$Force) process{$global:AeroPackageTest.Module=$null} }
-    function Start-Sleep { param($Seconds) }
+    function Start-Sleep { param($Seconds,$Milliseconds) }
     function Start-Process {
         param($FilePath,$WindowStyle,[switch]$PassThru)
         Assert ($WindowStyle -eq 'Hidden') 'Installer exposed an interactive helper window.'
         if($FilePath -like '*TransparencyTweak.exe'){
             $failed = $global:AeroPackageTest.FailAero -and $FilePath -like '*\versions\*'
-            if(-not $failed){$global:AeroPackageTest.Module = Join-Path (Split-Path $FilePath) 'TweakTap.dll'}
+            $global:AeroPackageTest.TaskbarReads=0
+            if(-not $failed){
+                $global:AeroPackageTest.Module = if($global:AeroPackageTest.WrongAeroModule -and $FilePath -like '*\versions\*'){$global:AeroPackageTest.WrongAeroModule}else{Join-Path (Split-Path $FilePath) 'TweakTap.dll'}
+            }
             $process=[pscustomobject]@{ExitCode=if($failed){1}else{0}}
             $process | Add-Member ScriptMethod WaitForExit {param($timeout) return $true}
             $process | Add-Member ScriptMethod Kill {throw 'Unexpected timeout.'}
@@ -103,6 +126,7 @@ try {
     foreach($file in @('TweakTap.dll','TransparencyTweak.exe')){[IO.File]::WriteAllText((Join-Path $legacyDir $file),'previous binary ' + $file)}
     $previousExe=Join-Path $legacyDir 'TransparencyTweak.exe'
     $legacyHash=(Get-FileHash -LiteralPath (Join-Path $legacyDir 'TweakTap.dll')).Hash
+    $global:AeroPackageTest.LegacyModule=Join-Path $legacyDir 'TweakTap.dll'
     $initialXML='<Task><Actions><Exec><Command>' + [Security.SecurityElement]::Escape($previousExe) + '</Command></Exec></Actions></Task>'
     $global:AeroPackageTest.Task=[pscustomobject]@{Actions=@([pscustomobject]@{Execute=$previousExe;Arguments=''})}
     $global:AeroPackageTest.TaskXML=$initialXML
@@ -124,6 +148,28 @@ try {
     Assert ($global:AeroPackageTest.Registry[$personalize].EnableTransparency -eq 0) 'Windows preference not restored.'
     Assert (Test-Path -LiteralPath (Join-Path $plan.TargetDirectory 'TweakTap.dll')) 'Restore deleted Aero files.'
     Write-Host 'PASS: install/restore keeps both versions, slider and previous startup/preferences.'
+    $global:AeroPackageTest.DelayReads=3
+    $global:AeroPackageTest.ExtraExplorer=$true
+    & $switch -Mode Enable
+    Assert ($global:AeroPackageTest.TaskbarReads -eq 4) 'Installer did not wait for delayed taskbar DLL loading.'
+    & $switch -Mode Previous
+    $global:AeroPackageTest.DelayReads=0
+    $global:AeroPackageTest.ExtraExplorer=$false
+    Write-Host 'PASS: delayed DLL readiness and separate Explorer processes do not cause false failures.'
+    foreach($scenario in @('WrongAeroModule','DuplicateAeroModule')){
+        $global:AeroPackageTest[$scenario]=$global:AeroPackageTest.LegacyModule
+        $rejected=$false
+        try { & $switch -Mode Enable } catch {
+            $rejected=$_.Exception.Message -like '*Expected SHA256*Previous version and preferences restored*'
+        }
+        Assert $rejected ('Invalid taskbar DLL accepted or rollback failed: ' + $scenario)
+        Assert ($global:AeroPackageTest.TaskXML -eq $initialXML) 'Verification rollback changed prior startup task.'
+        Assert ($global:AeroPackageTest.Registry[$key].AeroGlass -eq 0) 'Verification rollback changed prior preference.'
+        $global:AeroPackageTest[$scenario]=$null
+    }
+    $diagnostics=Get-Content -LiteralPath (Join-Path $fixture 'TransparencyTweak\logs\aero-install.log') -Raw
+    Assert ($diagnostics -like '*Taskbar Explorer PID 100*' -and $diagnostics.Contains($legacyHash)) 'Diagnostic log omitted observed PID/hash.'
+    Write-Host 'PASS: wrong/duplicate taskbar DLLs are rejected, logged and rolled back.'
     $global:AeroPackageTest.FailAero=$true
     $rejected=$false
     try { & $switch -Mode Enable } catch { $rejected=$_.Exception.Message -like '*Previous version and preferences restored*' }

@@ -102,7 +102,13 @@ static class Setup
 
     static int RunScript(string script, out string output)
     {
-        var psi = new ProcessStartInfo("powershell.exe",
+        // Always inspect the x64 shell with x64 PowerShell, including when this
+        // frontend is launched by a 32-bit process or PATH contains another host.
+        string systemDirectory = Environment.Is64BitOperatingSystem && !Environment.Is64BitProcess
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Sysnative")
+            : Environment.GetFolderPath(Environment.SpecialFolder.System);
+        string powershell = Path.Combine(systemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
+        var psi = new ProcessStartInfo(powershell,
             "-NoProfile -ExecutionPolicy Bypass -File \"" + script + "\"");
         psi.UseShellExecute = false;
         psi.CreateNoWindow = true;
