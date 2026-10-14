@@ -43,6 +43,11 @@
 #include <thread>
 #include <vector>
 #include "SettingsInjection.h"
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+#include <atomic>
+#include <winrt/Windows.UI.Xaml.Hosting.h>
+#include "experimental/AeroGlassBrush.h"
+#endif
 
 #pragma comment(linker, "/EXPORT:DllGetClassObject,PRIVATE")
 #pragma comment(linker, "/EXPORT:DllCanUnloadNow,PRIVATE")
@@ -209,6 +214,10 @@ namespace
 
     TrayBackdrop g_backdrop;
 
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+#include "experimental/AeroTaskbarBackground.inl"
+    using TaskbarBackground = AeroTaskbarBackground;
+#else
     class TaskbarBackground
     {
     public:
@@ -359,6 +368,7 @@ namespace
         std::once_flag m_watchOnce;
     };
 
+#endif
     TaskbarBackground g_taskbar;
 
     // ------------------------------------------------------- reaching Settings
@@ -432,6 +442,104 @@ namespace
         RegSetKeyValueW(HKEY_CURRENT_USER, kAppKey, L"TaskbarTransparency", REG_DWORD, &value, sizeof(value));
     }
 
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+    constexpr wchar_t kAeroRowName[] = L"TransparencyTweak_AeroRow";
+
+    void BindTransparencyEnabled(wuxc::Control const& control, wuxc::ToggleSwitch const& toggle)
+    {
+        wux::Data::Binding enabled;
+        enabled.Source(toggle);
+        enabled.Path(wux::PropertyPath(L"IsOn"));
+        enabled.Mode(wux::Data::BindingMode::OneWay);
+        control.SetBinding(wuxc::Control::IsEnabledProperty(), enabled);
+    }
+
+    void AddAeroSlider(wuxc::StackPanel const& panel, wuxc::ToggleSwitch const& nativeToggle,
+                       const wchar_t* title, const wchar_t* automationId, const wchar_t* setting,
+                       DWORD fallback, double registryUnitsPerPercent)
+    {
+        using wux::Automation::AutomationProperties;
+        wuxc::StackPanel row;
+        row.Orientation(wuxc::Orientation::Horizontal);
+        row.Margin({0, 6, 0, 2});
+        wuxc::TextBlock label;
+        label.Text(title);
+        label.MinWidth(145);
+        label.VerticalAlignment(wux::VerticalAlignment::Center);
+        label.Margin({0, 0, 16, 0});
+
+        wuxc::Slider slider;
+        slider.Minimum(0);
+        slider.Maximum(100);
+        slider.StepFrequency(1);
+        slider.SmallChange(1);
+        slider.LargeChange(10);
+        slider.Width(220);
+        slider.VerticalAlignment(wux::VerticalAlignment::Center);
+        slider.Value(std::clamp(ReadDword(kAppKey, setting, fallback) / registryUnitsPerPercent, 0.0, 100.0));
+        AutomationProperties::SetName(slider, title);
+        AutomationProperties::SetAutomationId(slider, automationId);
+        wuxc::TextBlock value;
+        value.Text(winrt::to_hstring(static_cast<int>(std::lround(slider.Value()))) + L"%");
+        value.MinWidth(40);
+        value.Margin({12, 0, 0, 0});
+        value.VerticalAlignment(wux::VerticalAlignment::Center);
+        slider.ValueChanged([value, setting, registryUnitsPerPercent](auto const&, wuxc::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            try
+            {
+                const DWORD stored = static_cast<DWORD>(std::lround(e.NewValue() * registryUnitsPerPercent));
+                value.Text(winrt::to_hstring(static_cast<int>(std::lround(e.NewValue()))) + L"%");
+                const LSTATUS result = RegSetKeyValueW(HKEY_CURRENT_USER, kAppKey, setting, REG_DWORD, &stored, sizeof(stored));
+                if (result != ERROR_SUCCESS) g_log.Write(L"glass setting %s write failed error=%ld", setting, result);
+            }
+            catch (...) { g_log.Write(L"glass setting slider failed hr=0x%08X", static_cast<unsigned>(winrt::to_hresult())); }
+        });
+        BindTransparencyEnabled(slider, nativeToggle);
+        row.Children().Append(label);
+        row.Children().Append(slider);
+        row.Children().Append(value);
+        panel.Children().Append(row);
+    }
+
+    void AttachAeroControls(wuxc::StackPanel const& text, wuxc::ToggleSwitch const& nativeToggle)
+    {
+        for (auto const& child : text.Children())
+            if (auto fe = child.try_as<wux::FrameworkElement>(); fe && fe.Name() == kAeroRowName) return;
+        wuxc::StackPanel group;
+        group.Name(kAeroRowName);
+        group.Margin({0, 6, 0, 2});
+        wuxc::ToggleSwitch aero;
+        aero.Header(winrt::box_value(L"Aero Glass"));
+        aero.IsOn(ReadDword(kAppKey, L"AeroGlass", 1) != 0);
+        wux::Automation::AutomationProperties::SetName(aero, L"Aero Glass");
+        wux::Automation::AutomationProperties::SetAutomationId(aero, L"TransparencyTweak_AeroToggle");
+        aero.Toggled([](auto const& sender, auto const&)
+        {
+            try
+            {
+                const DWORD enabled = sender.template as<wuxc::ToggleSwitch>().IsOn() ? 1 : 0;
+                const LSTATUS result = RegSetKeyValueW(HKEY_CURRENT_USER, kAppKey, L"AeroGlass", REG_DWORD, &enabled, sizeof(enabled));
+                if (result != ERROR_SUCCESS) g_log.Write(L"glass toggle write failed error=%ld", result);
+            }
+            catch (...) { g_log.Write(L"glass toggle failed hr=0x%08X", static_cast<unsigned>(winrt::to_hresult())); }
+        });
+        BindTransparencyEnabled(aero, nativeToggle);
+        group.Children().Append(aero);
+        wuxc::TextBlock description;
+        description.Text(L"Keep the frosted glass effect even at 100% transparency.");
+        description.FontSize(12);
+        description.TextWrapping(wux::TextWrapping::Wrap);
+        description.Margin({0, 2, 0, 2});
+        group.Children().Append(description);
+        AddAeroSlider(group, nativeToggle, L"Blur strength", L"TransparencyTweak_BlurSlider", L"GlassBlurSigmaMilli", 2500, 160.0);
+        AddAeroSlider(group, nativeToggle, L"Reflection strength", L"TransparencyTweak_ReflectionSlider", L"GlassReflectionPercent", 12, 0.3);
+        text.Children().Append(group);
+        g_log.Write(L"aero controls attached (enabled=%d blur=%lu reflection=%lu)", aero.IsOn(),
+            ReadDword(kAppKey, L"GlassBlurSigmaMilli", 2500), ReadDword(kAppKey, L"GlassReflectionPercent", 12));
+    }
+#endif
+
     // Row layout:  [Transparency effects / Windows and surfaces appear translucent]      On [toggle]
     //              [Taskbar transparency  ----o----  40%]                       <- added here
     void AttachSlider(wuxc::ToggleSwitch const& toggle)
@@ -446,7 +554,13 @@ namespace
         auto text = reflow.Children().GetAt(0).try_as<wuxc::StackPanel>();
         if (!text) return;
         for (auto const& child : text.Children())
-            if (auto fe = child.try_as<wux::FrameworkElement>(); fe && fe.Name() == kSliderRowName) return;
+            if (auto fe = child.try_as<wux::FrameworkElement>(); fe && fe.Name() == kSliderRowName)
+            {
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+                AttachAeroControls(text, toggle);
+#endif
+                return;
+            }
 
         wuxc::StackPanel row;
         row.Name(kSliderRowName);
@@ -507,6 +621,9 @@ namespace
         row.Children().Append(value);
         text.Children().Append(row);
         g_log.Write(L"slider attached (value %d%%)", percent);
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+        AttachAeroControls(text, toggle);
+#endif
     }
 
     wuxc::ToggleSwitch FindTransparencyToggle(wux::DependencyObject const& node, int depth)
@@ -525,7 +642,13 @@ namespace
     // dispatcher without initializing any XAML diagnostics session.
     void StartSettingsScanner()
     {
-        struct Holder { wux::DispatcherTimer timer{nullptr}; };
+        struct Holder
+        {
+            wux::DispatcherTimer timer{nullptr};
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+            winrt::weak_ref<wuxc::ToggleSwitch> colorsToggle;
+#endif
+        };
         static auto* holder = new Holder(); // never destroyed: no XAML calls at process exit
         if (holder->timer) return;
         holder->timer = wux::DispatcherTimer();
@@ -538,7 +661,20 @@ namespace
                 auto window = wux::Window::Current();
                 auto content = window ? window.Content() : nullptr;
                 if (!content) return;
-                if (auto toggle = FindTransparencyToggle(content, 0)) AttachSlider(toggle);
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+                if (auto cached = holder->colorsToggle.get(); cached && cached.IsLoaded())
+                {
+                    AttachSlider(cached);
+                    return;
+                }
+#endif
+                if (auto toggle = FindTransparencyToggle(content, 0))
+                {
+                    AttachSlider(toggle);
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+                    holder->colorsToggle = winrt::make_weak(toggle);
+#endif
+                }
             }
             catch (...)
             {
@@ -599,6 +735,9 @@ namespace
         {
             if (m_role == Role::Explorer)
             {
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+                g_taskbar.Stop();
+#endif
                 if (auto service = m_diag.try_as<IVisualTreeService3>())
                     service->UnadviseVisualTreeChange(this);
             }
@@ -614,14 +753,24 @@ namespace
                                  mutation == Add ? L'A' : L'R',
                                  relation.Parent, relation.Child, relation.ChildIndex,
                                  element.Type ? element.Type : L"", element.Name ? element.Name : L"");
-                if (mutation != Add) return S_OK;
+                if (mutation != Add)
+                {
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+                    if (m_role == Role::Explorer && mutation == Remove) g_taskbar.Untrack(element.Handle);
+#endif
+                    return S_OK;
+                }
                 if (m_role == Role::Explorer && Is(element.Type, L"Windows.UI.Xaml.Shapes.Rectangle") &&
                     (Is(element.Name, L"BackgroundFill") || Is(element.Name, L"BackgroundStroke")))
                 {
                     if (auto ui = ElementFromHandle(element.Handle))
                     {
                         g_log.Write(L"tracking taskbar %s", element.Name);
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+                        g_taskbar.Track(ui, element.Handle, Is(element.Name, L"BackgroundFill"));
+#else
                         g_taskbar.Track(ui);
+#endif
                     }
                 }
             }

@@ -21,3 +21,8 @@
 /.vscode/
 /.codex/
 /.agents/
+
+# Local experiment backups and downloaded research artifacts
+/backups/
+/research/
+/Restore-Stable.ps1

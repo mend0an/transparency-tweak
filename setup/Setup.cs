@@ -15,15 +15,36 @@ using System.Windows.Forms;
 static class Setup
 {
 #if INSTALL
+#if AERO_PACKAGE
+    const string Title = "Install Transparency Tweak Aero " + AeroPackageInfo.Version;
+    const string Prompt =
+        "This installs the Aero preview in its own version folder and adds glass controls in Personalization > Colors.\n\n" +
+        "You do not need to uninstall the previous version. Its program files are kept; only one version is active. " +
+        "The previous startup task and settings are saved for Restore Previous Version.\n\n" +
+        "Explorer restarts and File Explorer / Settings windows using the tweak may close. Continue?";
+#else
     const string Title = "Install Transparency Tweak";
     const string Prompt =
         "This adds a \"Taskbar transparency\" slider to Settings > Personalization > Colors.\n\n" +
         "No administrator rights are needed and nothing in the Windows system folders is changed. " +
         "If it is already installed, it is updated. Updating an active older version restarts Explorer " +
         "and closes File Explorer and Settings windows using that version.\n\nContinue?";
+#endif
     const string Busy = "Installing...";
+#if AERO_PACKAGE
+    static readonly string[] Files = { "install.ps1", "switch.ps1", "package.json", @"native\out\TweakTap.dll", @"native\out\TransparencyTweak.exe" };
+#else
     static readonly string[] Files = { "install.ps1", @"native\out\TweakTap.dll", @"native\out\TransparencyTweak.exe" };
+#endif
     const string Script = "install.ps1";
+#else
+#if AERO_PACKAGE
+    const string Title = "Restore Previous Transparency Tweak Version";
+    const string Prompt =
+        "This switches from Aero " + AeroPackageInfo.Version + " to the version and settings saved before its installation.\n\n" +
+        "The Aero package files are kept. Explorer restarts, so File Explorer / Settings windows using the tweak may close. Continue?";
+    const string Busy = "Restoring previous version...";
+    static readonly string[] Files = { "uninstall.ps1", "switch.ps1", "package.json" };
 #else
     const string Title = "Uninstall Transparency Tweak";
     const string Prompt =
@@ -31,6 +52,7 @@ static class Setup
         "Explorer restarts, so open File Explorer windows will close (other apps are not affected).\n\nContinue?";
     const string Busy = "Uninstalling...";
     static readonly string[] Files = { "uninstall.ps1" };
+#endif
     const string Script = "uninstall.ps1";
 #endif
 
