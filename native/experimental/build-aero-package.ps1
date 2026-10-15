@@ -1,7 +1,7 @@
 # Builds a separately named, versioned Aero release; stable outputs stay intact.
 [CmdletBinding()]
 param(
-    [ValidatePattern('^\d+\.\d+\.\d+-preview\.\d+$')][string]$Version = '0.1.0-preview.2',
+    [ValidatePattern('^\d+\.\d+\.\d+-preview\.\d+$')][string]$Version = '0.1.0-preview.5',
     [switch]$SkipNativeBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -16,11 +16,13 @@ foreach ($relative in $protected) {
     if (Test-Path -LiteralPath $path) { $originalHashes[$relative] = (Get-FileHash -LiteralPath $path).Hash }
 }
 if (-not $SkipNativeBuild) { & (Join-Path $PSScriptRoot 'build-aero-prototype.ps1') }
-foreach ($file in @('TweakTap.dll','TransparencyTweak.exe','AeroGlassProbe.exe')) {
+foreach ($file in @('TweakTap.dll','TransparencyTweak.exe','AeroGlassProbe.exe','TrayShadowProbe.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $nativeOut $file))) { throw "Required build output missing: $file" }
 }
 & (Join-Path $nativeOut 'AeroGlassProbe.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Aero graph probe failed. Release not created.' }
+& (Join-Path $nativeOut 'TrayShadowProbe.exe')
+if ($LASTEXITCODE -ne 0) { throw 'Tray shadow probe failed. Release not created.' }
 New-Item -ItemType Directory -Path (Join-Path $release 'native\out') -Force | Out-Null
 foreach ($file in @('TweakTap.dll','TransparencyTweak.exe')) {
     Copy-Item -LiteralPath (Join-Path $nativeOut $file) -Destination (Join-Path $release ('native\out\' + $file))
@@ -67,6 +69,11 @@ Verification failures include observed DLL paths/hashes in
 4. Use Aero Glass, Blur strength, Reflection strength, and Taskbar transparency.
    At 100% transparency, blur and reflections remain; 0% restores native brushes.
 
+System tray text and image icons have a subtle black, glyph-shaped shadow.
+It is removed at 0% transparency or when Windows transparency effects are off.
+Preview 5 uses arranged text dimensions and layout-sized shadow hosts, keeping
+the clock shadow aligned with its digits in the two-line clock/date layout.
+
 Installed files: %LOCALAPPDATA%\TransparencyTweak\versions\aero-$Version
 The original app folder is kept. The existing TransparencyTweak startup task
 switches to this version; its previous XML and settings are saved locally.
@@ -86,8 +93,10 @@ The standalone EXE files include their scripts/payloads. PowerShell alternatives
 
 The restore operation switches versions; it does not delete the Aero package.
 Preview limitation: exact Windows 7 appearance and total blur/GPU allocation are
-not established. Settings controls and this version-switch installer still need
-live UI/install validation. Building the package does not activate it.
+not established. Preview 5 was installed in a live Windows session; the user
+confirmed the corrected tray shadows and supplied taskbar/Settings screenshots.
+Automated pixel verification and compatibility with other Windows builds remain
+unverified. Building the package does not activate it.
 "@
 $readme | Set-Content -LiteralPath (Join-Path $release 'README.md') -Encoding UTF8
 foreach ($relative in $originalHashes.Keys) {

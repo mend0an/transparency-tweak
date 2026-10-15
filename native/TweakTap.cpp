@@ -215,6 +215,7 @@ namespace
     TrayBackdrop g_backdrop;
 
 #if defined(TWEAK_EXPERIMENTAL_AERO)
+#include "experimental/TrayContentShadow.inl"
 #include "experimental/AeroTaskbarBackground.inl"
     using TaskbarBackground = AeroTaskbarBackground;
 #else
@@ -736,6 +737,7 @@ namespace
             if (m_role == Role::Explorer)
             {
 #if defined(TWEAK_EXPERIMENTAL_AERO)
+                g_trayShadows.Stop();
                 g_taskbar.Stop();
 #endif
                 if (auto service = m_diag.try_as<IVisualTreeService3>())
@@ -756,10 +758,21 @@ namespace
                 if (mutation != Add)
                 {
 #if defined(TWEAK_EXPERIMENTAL_AERO)
-                    if (m_role == Role::Explorer && mutation == Remove) g_taskbar.Untrack(element.Handle);
+                    if (m_role == Role::Explorer && mutation == Remove)
+                    {
+                        g_trayShadows.Untrack(element.Handle);
+                        g_taskbar.Untrack(element.Handle);
+                    }
 #endif
                     return S_OK;
                 }
+#if defined(TWEAK_EXPERIMENTAL_AERO)
+                if (m_role == Role::Explorer &&
+                    (Is(element.Type, L"Windows.UI.Xaml.Controls.TextBlock") || Is(element.Type, L"Windows.UI.Xaml.Controls.Image")))
+                {
+                    if (auto ui = ElementFromHandle(element.Handle)) g_trayShadows.Track(ui, element.Handle);
+                }
+#endif
                 if (m_role == Role::Explorer && Is(element.Type, L"Windows.UI.Xaml.Shapes.Rectangle") &&
                     (Is(element.Name, L"BackgroundFill") || Is(element.Name, L"BackgroundStroke")))
                 {

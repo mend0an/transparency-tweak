@@ -1,0 +1,12 @@
+﻿{
+    "Product":  "Transparency Tweak Aero",
+    "Channel":  "aero",
+    "Version":  "0.1.0-preview.5",
+    "CreatedUTC":  "2026-10-15T14:00:55.9363593Z",
+    "WindowsBuildTested":  "26300.9457",
+    "Hashes":  {
+                   "TransparencyTweak.exe":  "95002DC1BFB7C7BF92708FF9F7F9A9AEB8A20F468D064C227CD04D56683FB278",
+                   "TweakTap.dll":  "2A8926FE0F0ED20A29D9E5F6EA4E5BE985BF7B35692ECE2E74F93AB4AEC83980"
+               },
+    "DLLLastWriteTimeUTC":  "2026-10-15T14:00:24.7776781Z"
+}

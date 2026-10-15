@@ -20,6 +20,7 @@ $native = Split-Path $PSScriptRoot
 $tap = Join-Path $native 'TweakTap.cpp'
 $injector = Join-Path $native 'Injector.cpp'
 foreach ($variant in @(
+    @{ Source=(Join-Path $PSScriptRoot 'TrayShadowProbe.cpp'); Output='TrayShadowProbe.exe'; Object='TrayShadowProbe.obj'; Flags=''; Libraries=('windowsapp.lib ole32.lib user32.lib /MANIFEST:EMBED /MANIFESTINPUT:"{0}"' -f (Join-Path $PSScriptRoot 'TrayShadowProbe.manifest')) },
     @{ Source=$tap; Output='TweakTap.dll'; Object='TweakTap-aero.obj'; Flags='/LD /DTWEAK_EXPERIMENTAL_AERO'; Libraries='windowsapp.lib ole32.lib oleaut32.lib advapi32.lib user32.lib dxguid.lib' },
     @{ Source=$tap; Output='TweakTap-stable-check.dll'; Object='TweakTap-stable.obj'; Flags='/LD'; Libraries='windowsapp.lib ole32.lib oleaut32.lib advapi32.lib user32.lib' },
     @{ Source=$injector; Output='TransparencyTweak.exe'; Object='Injector.obj'; Flags=''; Libraries='/SUBSYSTEM:WINDOWS /ENTRY:wmainCRTStartup user32.lib advapi32.lib' }

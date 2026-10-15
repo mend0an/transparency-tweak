@@ -87,6 +87,7 @@ public:
 
     void ApplyAll()
     {
+        g_trayShadows.ApplyAll();
         g_backdrop.Update(WantedTaskbarOpacity() >= 0);
         std::vector<Entry> entries;
         {

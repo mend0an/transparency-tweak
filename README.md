@@ -1,20 +1,20 @@
 # Transparency Tweak
 
-Add a **Taskbar transparency** slider directly to **Windows Settings > Personalization > Colors**. Adjust the taskbar from its default appearance to fully transparent, with changes applied immediately.
+Add taskbar appearance controls directly to **Windows Settings > Personalization > Colors**. Choose the stable plain tint edition, or **Aero Glass 0.1.0-preview.5** for adjustable blur, reflections, and shadows behind system tray icons and the clock/date. Changes apply immediately.
 
 Built for **Windows 11 x64**. Tested on Windows build **26300.9457**; compatibility with other builds has not been verified.
 
 ## Preview
 
-### Transparent taskbar
+### Aero Glass Preview 5 taskbar
 
-![Windows 11 desktop with a transparent taskbar](docs/images/desktop-transparent-taskbar.png)
+![Aero Glass Preview 5 taskbar with blur and shadows behind system tray icons and the clock/date](docs/images/aero-preview5-taskbar.png)
 
-### Slider in Windows Settings
+### Aero controls in Windows Settings
 
-![Taskbar transparency slider at 100% in Personalization > Colors](docs/images/settings-transparency-slider.png)
+![Aero Glass Preview 5 controls in Personalization > Colors: transparency 73%, Aero Glass on, blur strength 24%, reflection strength 40%](docs/images/aero-preview5-settings.png)
 
-Screenshots show the taskbar at **100% transparency** with Windows transparency effects enabled. The wallpaper and desktop apps shown are illustrative and are not included.
+These screenshots show **Aero Glass Preview 5**, with **73% taskbar transparency**, **24% Blur strength**, **40% Reflection strength**, and Windows transparency effects enabled. The wallpaper and desktop apps shown are illustrative and are not included.
 
 ## Features
 
@@ -23,8 +23,21 @@ Screenshots show the taskbar at **100% transparency** with Windows transparency 
 - Automatic loading at sign-in and unlock.
 - Per-user installation without administrator rights.
 - An uninstaller that restores the default Windows taskbar.
+- In Aero Preview 5: adjustable blur/reflections, system tray shadows, and corrected clock shadow sizing for right-aligned text.
 
 ## Install or update
+
+### Aero Glass Preview 5
+
+1. Download the installer or ZIP from the [Preview 5 release](https://github.com/mend0an/transparency-tweak/releases/tag/v0.1.0-preview.5), or use the [installer in this repository](dist/TransparencyTweak-Aero-0.1.0-preview.5/Install%20Transparency%20Tweak%20Aero%200.1.0-preview.5.exe).
+2. Run **Install Transparency Tweak Aero 0.1.0-preview.5.exe**. No prior uninstall is required. Explorer restarts, so open File Explorer windows may close.
+3. Reopen **Settings > Personalization > Colors**, enable **Transparency effects**, then adjust **Taskbar transparency**, **Aero Glass**, **Blur strength**, and **Reflection strength**.
+
+In Aero mode, **100% transparency keeps blur and reflections**; **0% restores the native taskbar brushes**. Shadows follow the shape of tray text/image icons and the clock/date. They are removed at 0% or when Windows transparency effects are off.
+
+Previous program files are preserved. Run the included **Restore Previous Version.exe** to return to the saved version and preferences. See [release notes](docs/AERO-RELEASE.md) for installation details and validation.
+
+### Stable plain tint edition
 
 1. Download [Install Transparency Tweak.exe](dist/Install%20Transparency%20Tweak.exe) using GitHub's **Download raw file** button, or download and extract this repository using **Code > Download ZIP**.
 2. Run the installer and accept its confirmation.
@@ -33,7 +46,7 @@ Screenshots show the taskbar at **100% transparency** with Windows transparency 
 
 Updating an active older version closes Settings if it uses that version and restarts Explorer when necessary. Open File Explorer windows may close. Your transparency percentage is preserved.
 
-## How the slider works
+## How the stable plain tint slider works
 
 | Setting | Result |
 | --- | --- |
@@ -45,6 +58,8 @@ Updating an active older version closes Settings if it uses that version and res
 The replacement uses a plain tint instead of native Acrylic blur. It changes the taskbar background; taskbar icons remain visible.
 
 ## Uninstall
+
+To roll back an Aero preview, use its **Restore Previous Version.exe**. The full uninstaller below removes the application, including saved Aero version folders.
 
 Download and run [Uninstall Transparency Tweak.exe](dist/Uninstall%20Transparency%20Tweak.exe), then accept its confirmation. Explorer restarts, so open File Explorer windows will close.
 
@@ -71,6 +86,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ## Files and settings
 
 - Program files: `%LOCALAPPDATA%\TransparencyTweak\app`
+- Aero Preview 5: `%LOCALAPPDATA%\TransparencyTweak\versions\aero-0.1.0-preview.5`
 - Logs: `%LOCALAPPDATA%\TransparencyTweak\logs`
 - Registry: `HKCU\Software\TransparencyTweak\TaskbarTransparency`
 - Scheduled task: `TransparencyTweak`
@@ -79,7 +95,7 @@ The tweak loads a DLL into Explorer and Settings to customize their UI. It does 
 
 See [development notes](docs/DEVELOPMENT.md) for the Settings crash fix, implementation details, and regression test commands.
 
-An optional [Aero Glass preview 0.1.0-preview.2](docs/AERO-RELEASE.md) adds taskbar blur and reflections with separate controls in Colors. Its versioned package keeps previous program files and includes a **Restore Previous Version** tool. No prior uninstall is required; switching versions restarts Explorer. Preview 2 corrects verification to check the taskbar's Explorer, waits for DLL readiness, and records DLL paths/hashes if verification fails. The stable installer above remains the plain tint edition. The preview installer has passed simulated switching tests; live installer and Settings UI validation are pending.
+Aero Preview 5 passed the XAML shadow regression probe, the 20,000-update glass resource probe, package checksum/installer simulation checks, and live clock-shadow update checks. The user confirmed the corrected clock/date/icon shadows and supplied the screenshots above. This is a preview tested on one Windows build; see [tray shadow implementation notes](docs/TRAY-SHADOW.md) for test details and limits.
 
 ## Support the project
 

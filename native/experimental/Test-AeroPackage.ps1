@@ -1,7 +1,7 @@
 # Artifact checks and simulated installer round trips. Never touches real tasks,
 # registry or processes. All filesystem fixtures stay under native/out.
 [CmdletBinding()]
-param([string]$Version = '0.1.0-preview.2')
+param([string]$Version = '0.1.0-preview.5')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot)
 $release = Join-Path $root ('dist\TransparencyTweak-Aero-' + $Version)
